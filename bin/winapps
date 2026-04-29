@@ -410,8 +410,21 @@ function waGetFreeRDPCommand() {
 
     # Attempt to set a FreeRDP command if the command variable is empty.
     if [ -z "$FREERDP_COMMAND" ]; then
+        if [ "$1" = "windows" ] && [ "$XDG_SESSION_TYPE" = "wayland" ]; then
+            if command -v sdl-freerdp3 &>/dev/null; then
+                FREERDP_COMMAND="sdl-freerdp3"
+            elif command -v sdl3-freerdp &>/dev/null; then
+                FREERDP_COMMAND="sdl3-freerdp"
+            elif command -v sdl-freerdp &>/dev/null; then
+                FREERDP_COMMAND="sdl-freerdp"
+            elif command -v flatpak &>/dev/null && flatpak list --columns=application | grep -q "^com.freerdp.FreeRDP$"; then
+                FREERDP_COMMAND="flatpak run --command=sdl-freerdp com.freerdp.FreeRDP"
+                RDP_FLATPAK=1
+            fi
+        fi
+
         # Check for 'xfreerdp'.
-        if command -v xfreerdp &>/dev/null; then
+        if [ -z "$FREERDP_COMMAND" ] && command -v xfreerdp &>/dev/null; then
             # Check FreeRDP major version is 3 or greater.
             FREERDP_MAJOR_VERSION=$(xfreerdp --version | head -n 1 | grep -o -m 1 '\b[0-9]\S*' | head -n 1 | cut -d'.' -f1)
             if [[ $FREERDP_MAJOR_VERSION =~ ^[0-9]+$ ]] && ((FREERDP_MAJOR_VERSION >= 3)); then
@@ -445,7 +458,7 @@ function waGetFreeRDPCommand() {
         fi
     fi
 
-    if command -v "$FREERDP_COMMAND" &>/dev/null || [ "$FREERDP_COMMAND" = "flatpak run --command=xfreerdp com.freerdp.FreeRDP" ]; then
+    if command -v "$FREERDP_COMMAND" &>/dev/null || [ "$FREERDP_COMMAND" = "flatpak run --command=xfreerdp com.freerdp.FreeRDP" ] || [ "$FREERDP_COMMAND" = "flatpak run --command=sdl-freerdp com.freerdp.FreeRDP" ]; then
         dprint "Using FreeRDP command '${FREERDP_COMMAND}'."
 
         # Append additional flags or parameters to FreeRDP.
@@ -982,7 +995,7 @@ dprint "HOME_DIR: ${HOME}"
 waEarlyDispatch "$@"
 waLastRun
 waLoadConfig
-waGetFreeRDPCommand
+waGetFreeRDPCommand "$1"
 waCleanFreeRDP
 
 # Send password on the command line if a command to retrieve the password from is not given
